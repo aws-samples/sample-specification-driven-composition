@@ -1,0 +1,5 @@
+{
+  "spec_s3_uri": "s3://amzn-s3-demo-spec-workflows-250831/specs/orders-spec.json",
+  "input_s3_uri": "s3://amzn-s3-demo-spec-workflows-250831/input/raw_orders.json",
+  "state_machine_name": "orders-transform"
+}

@@ -1,0 +1,170 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Specification-driven composition walkthrough
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 30
+    MemorySize: 256
+
+Resources:
+  ArtifactsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+  ArtifactsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ArtifactsBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource:
+              - !GetAtt ArtifactsBucket.Arn
+              - !Sub '${ArtifactsBucket.Arn}/*'
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+
+  RegistryKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: Encrypts the capability registry table
+      EnableKeyRotation: true
+      PendingWindowInDays: 7
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowAccountAdministration
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:root
+            Action: kms:*
+            Resource: '*'
+
+  RegistryTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: capability_name
+          AttributeType: S
+        - AttributeName: version
+          AttributeType: S
+      KeySchema:
+        - AttributeName: capability_name
+          KeyType: HASH
+        - AttributeName: version
+          KeyType: RANGE
+      SSESpecification:
+        SSEEnabled: true
+        SSEType: KMS
+        KMSMasterKeyId: !Ref RegistryKey
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+  StateMachineExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+
+  StateMachineInvokePolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Roles:
+        - !Ref StateMachineExecutionRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - lambda:InvokeFunction
+            Resource:
+              - !GetAtt FormatDateFunction.Arn
+              - !GetAtt NormalizeCurrencyFunction.Arn
+
+  ComposerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: composer/
+      Handler: composer.lambda_handler
+      Environment:
+        Variables:
+          REGISTRY_TABLE: !Ref RegistryTable
+          OUTPUT_BUCKET: !Ref ArtifactsBucket
+          STATE_MACHINE_ROLE_ARN: !GetAtt StateMachineExecutionRole.Arn
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref ArtifactsBucket
+        - S3WritePolicy:
+            BucketName: !Ref ArtifactsBucket
+        - DynamoDBReadPolicy:
+            TableName: !Ref RegistryTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - states:CreateStateMachine
+                - states:UpdateStateMachine
+                - states:PublishStateMachineVersion
+                - states:StartExecution
+              Resource: !Sub arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:orders-*
+            - Effect: Allow
+              Action: iam:PassRole
+              Resource: !GetAtt StateMachineExecutionRole.Arn
+
+  FormatDateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: format_date/
+      Handler: format_date.lambda_handler
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref ArtifactsBucket
+        - S3WritePolicy:
+            BucketName: !Ref ArtifactsBucket
+
+  NormalizeCurrencyFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: normalize_currency/
+      Handler: normalize_currency.lambda_handler
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref ArtifactsBucket
+        - S3WritePolicy:
+            BucketName: !Ref ArtifactsBucket
+
+Outputs:
+  ArtifactsBucketName:
+    Value: !Ref ArtifactsBucket
+  RegistryTableName:
+    Value: !Ref RegistryTable
+  ComposerFunctionName:
+    Value: !Ref ComposerFunction
+  FormatDateFunctionArn:
+    Value: !GetAtt FormatDateFunction.Arn
+  NormalizeCurrencyFunctionArn:
+    Value: !GetAtt NormalizeCurrencyFunction.Arn
