@@ -1,0 +1,26 @@
+{
+  "source": {
+    "dataset": "raw_orders"
+  },
+  "target": {
+    "dataset": "orders_clean"
+  },
+  "mappings": [
+    {
+      "source_field": "order_date",
+      "target_field": "order_date",
+      "transformation": {
+        "capability": "format_date",
+        "version": "1.0"
+      }
+    },
+    {
+      "source_field": "amount",
+      "target_field": "amount_normalized",
+      "transformation": {
+        "capability": "normalize_currency",
+        "version": "1.0"
+      }
+    }
+  ]
+}

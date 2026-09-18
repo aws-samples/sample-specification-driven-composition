@@ -1,0 +1,20 @@
+[
+  {
+    "order_id": "A1001",
+    "order_date": "03/01/2026",
+    "amount": "100.50",
+    "currency": "USD"
+  },
+  {
+    "order_id": "A1002",
+    "order_date": "3-2-2026",
+    "amount": "250,00",
+    "currency": "EUR"
+  },
+  {
+    "order_id": "A1003",
+    "order_date": "2026/03/03",
+    "amount": "75",
+    "currency": "USD"
+  }
+]
