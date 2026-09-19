@@ -20,7 +20,7 @@ The solution has three layers:
 2. **Composition layer.** A Lambda-based composer reads and validates the specification, resolves the pinned capability versions in a DynamoDB table, builds a Step Functions definition in Amazon States Language, publishes it as an immutable state machine version, and starts an execution under a unique run identifier. Validation happens before any workflow is assembled or started, so specification errors surface at composition time rather than mid-run.
 3. **Processing layer.** Step Functions invokes the `format_date` and `normalize_currency` Lambda functions in sequence. Each step writes its output to Amazon S3, which becomes the input for the next step. Logs and metrics are captured in Amazon CloudWatch.
 
-Each run writes its artifacts under a unique `runs/<run_id>/` prefix, so runs never overwrite each other. The final artifact is named after the target dataset declared in the specification. The Step Functions execution name equals the run identifier, which links the console view to the S3 artifacts.
+Each run writes its artifacts under a unique `runs/<run_id>/` prefix, so runs do not overwrite each other. The final artifact is named after the target dataset declared in the specification. The Step Functions execution name equals the run identifier, which links the console view to the S3 artifacts.
 
 ## Repository structure
 
